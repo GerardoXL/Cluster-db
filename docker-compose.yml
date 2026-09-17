@@ -18,6 +18,24 @@ services:
         networks:
         - cluster-net
         # -----------
+        # ----- agregar contendor haproxy ------
+    haproxy:
+        image: haproxy:3.4.4
+        container_name: haproxy-lib
+        ports: 
+        - "5000:5000"
+        - "5001:5001"
+        - "8404:8404"
+        volumes:
+            - ./config/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+        networks:
+            - cluster-net
+        # ---- indica que depende de node1 para que arranque en orden----
+        depends_on:
+            - node1
+
+
+        # -----------------
 # ---- secciones globales-------
 volumes:
     node1_data:
