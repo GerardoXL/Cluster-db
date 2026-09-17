@@ -28,3 +28,13 @@ En esta primera etapa se preparó la base del clúster, la seguridad de las cont
   * Puerto 5001: Canal para operaciones de lectura (preparado para balancear entre las futuras réplicas).
   * Puerto 8404: Panel web visual para monitorear en tiempo real el estado de los nodos.
 * Se validó que tanto la base de datos como el proxy están funcionando y comunicándose correctamente en la red interna.
+
+# 5. Configuración del Motor y Preparación para Replicación (Persona 2)
+
+En esta etapa se configuró el núcleo de PostgreSQL en el Nodo Primario para habilitar la replicación y se poblaron los datos iniciales:
+
+* Se crearon los archivos de configuración nativa (`config/postgresql.conf` y `config/pg_hba.conf`) definiendo los parámetros de *Streaming Replication* (wal_level, max_wal_senders) y estableciendo las reglas de acceso seguras para los nodos secundarios.
+* Se diseñó el script de inicialización (`scripts/init.sql`) que crea automáticamente los roles definidos en el `.env`, aplica los permisos correspondientes y genera la tabla `clientes` con datos de prueba iniciales.
+* Se modificó el `docker-compose.yml` para inyectar estos archivos mediante volúmenes al nodo primario.
+* Se dejaron definidos y preparados los contenedores de los nodos secundarios (`node2` y `node3`) a la espera de la clonación de datos.
+* Se forzó la zona horaria a UTC para evitar conflictos de compatibilidad con el sistema operativo host.
