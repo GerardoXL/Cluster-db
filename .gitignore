@@ -1,0 +1,8 @@
+# variables de entorno secreto---
+.env
+
+# logs 
+*.log
+
+# datos locales de la base de datos si se generan en el host 
+**/data/
