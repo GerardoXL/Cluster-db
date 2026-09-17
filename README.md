@@ -38,3 +38,13 @@ En esta etapa se configuró el núcleo de PostgreSQL en el Nodo Primario para ha
 * Se modificó el `docker-compose.yml` para inyectar estos archivos mediante volúmenes al nodo primario.
 * Se dejaron definidos y preparados los contenedores de los nodos secundarios (`node2` y `node3`) a la espera de la clonación de datos.
 * Se forzó la zona horaria a UTC para evitar conflictos de compatibilidad con el sistema operativo host.
+
+# 6. Puesta en Marcha de la Replicación y Resolución de Fallos de Red
+
+En esta etapa se completó la clonación de los nodos secundarios y se resolvieron los problemas de conectividad que surgieron durante las pruebas iniciales:
+
+* Se creó el script `scripts/setup-replica.sh`, que se ejecuta como entrypoint en node2 y node3: al detectar un datadir vacío, espera a que node1 esté disponible y ejecuta `pg_basebackup` con la opción `-R` para clonar los datos y generar automáticamente el `standby.signal` y el `primary_conninfo`.
+* Se corrigió `config/pg_hba.conf` para autorizar las conexiones de replicación desde la subred real del clúster (`172.19.0.0/16`), reemplazando un rango incorrecto que rechazaba las conexiones de los nodos secundarios.
+* Se identificó que `postgresql.conf` necesita declarar explícitamente `hba_file = '/etc/postgresql/pg_hba.conf'` para que node1 use el archivo de reglas personalizado en lugar del generado por defecto en el datadir.
+* Se verificó el estado de la replicación consultando `pg_stat_replication` en node1, confirmando ambos nodos secundarios en estado `streaming`, y `pg_is_in_recovery()` en node2 y node3 confirmando su rol de standby.
+* Se detectó que HAProxy resuelve el nombre `db-node1` a una IP una única vez al iniciar, por lo que un reinicio del nodo primario podía dejarlo apuntando a una IP obsoleta. Se corrigió agregando una sección `resolvers docker_dns` en `config/haproxy.cfg`, apuntando al DNS interno de Docker (`127.0.0.11:53`), para que HAProxy revalide la IP de los nodos automáticamente.
