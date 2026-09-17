@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+    node1:
+        image: postgres:17
+        container_name: db-node1
+        restart: unless-stopped
+        environment: 
+            POSTGRES_USER: ${POSTGRES_USER}
+            POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+            POSTGRES_DB: ${POSTGRES_DB}
+            # ---- sin puerto---
+            # -----
+        # ---- volumen -----
+        volumes:
+            - node1_data:/var/lib/postgresql/data
+        # --------
+        # ---- red -----
+        networks:
+        - cluster-net
+        # -----------
+# ---- secciones globales-------
+volumes:
+    node1_data:
+
+networks:
+    cluster-net:
+            driver: bridge
+
+
