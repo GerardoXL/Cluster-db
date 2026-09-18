@@ -1,7 +1,7 @@
 version: '3.8'
 services:
     # -------------------------
-    # NODO 1: PRIMARIO
+    # NODO 1: primario
     # -------------------------
     node1:
         image: postgres:17
@@ -11,11 +11,19 @@ services:
             POSTGRES_USER: ${POSTGRES_USER}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
             POSTGRES_DB: ${POSTGRES_DB}
+            REPLICA_USER: ${REPLICA_USER}
+            REPLICA_PASSWORD: ${REPLICA_PASSWORD}
+            APP_USER: ${APP_USER}
+            APP_PASSWORD: ${APP_PASSWORD}
+            MONITOR_USER: ${MONITOR_USER}
+            MONITOR_PASSWORD: ${MONITOR_PASSWORD}
             TZ: "UTC"
+
         volumes:
             - node1_data:/var/lib/postgresql/data
-            # AQUÍ INYECTAS TU TRABAJO:
-            - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+            #se inyecta el script bash dinamico:
+            - ./scripts/init.sh:/docker-entrypoint-initdb.d/init.sh 
+            # --------------
             - ./config/postgresql.conf:/etc/postgresql/postgresql.conf
             - ./config/pg_hba.conf:/etc/postgresql/pg_hba.conf
         # Obligas al nodo a arrancar con tu configuración
@@ -61,7 +69,7 @@ services:
             - cluster-net
 
     # -------------------------
-    # PROXY (Trabajo de Persona 1 intacto)
+    # PROXY
     # -------------------------
     haproxy:
         image: haproxy:3.4.4
