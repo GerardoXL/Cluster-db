@@ -3,23 +3,23 @@
 
 En esta primera etapa se preparó la base del clúster, la seguridad de las contraseñas y el punto de acceso centralizado:
 
-# 1. Estructura y Control de Versiones
+# 1. estructura y Control de Versiones
 
 * Se creo el repositorio Git con la estructura de carpetas requerida por el trabajo practico (node1/, node2/, node3/, config/, scripts/, etc.).
 * Se organizo el flujo de trabajo con ramas separadas para no pisar el código entre integrantes.
 
-# 2. Seguridad y Variables de Entorno
+# 2. seguridad y Variables de Entorno
 
 * Se configuró el archivo .gitignore para evitar que las contraseñas reales y los datos de la base de datos se suban al repositorio.
 * Se crearon los archivos .env.example (plantilla publica) y .env (privado local) definiendo los 4 usuarios pedidos por la consigna: administrador, replicación, aplicación y monitorización.
 
-# 3. Nodo Primario de Base de Datos (node1)
+# 3. nodo primario de base de datos (node1)
 
 * Se configuro el primer contenedor con PostgreSQL 17 en el archivo docker-compose.yml.
 * Se le asigno un volumen para almacenamiento persistente (node1_data) para no perder datos al apagar el contenedor.
 * Seguridad de red: El nodo se conectó a una red interna (cluster-net) sin exponer su puerto 5432 al exterior, evitando accesos directos no autorizados.
 
-# 4. Proxy y Balanceador de Carga (HAProxy)
+# 4. Proxy y Balanceador de carga (HAProxy)
 
 * Se implemento HAProxy como puerta de entrada unica para los clientes, segun lo visto en la teoría de balanceo de carga.
 * Se configuró el archivo config/haproxy.cfg dividiendo el tráfico:
@@ -29,7 +29,7 @@ En esta primera etapa se preparó la base del clúster, la seguridad de las cont
   * Puerto 8404: Panel web visual para monitorear en tiempo real el estado de los nodos.
 * Se validó que tanto la base de datos como el proxy están funcionando y comunicándose correctamente en la red interna.
 
-# 5. Configuración del Motor y Preparación para Replicación (Persona 2)
+# 5. configuración del motor y Preparación para Replicación
 
 En esta etapa se configuró el núcleo de PostgreSQL en el Nodo Primario para habilitar la replicación y se poblaron los datos iniciales:
 
@@ -48,3 +48,30 @@ En esta etapa se completó la clonación de los nodos secundarios y se resolvier
 * Se identificó que `postgresql.conf` necesita declarar explícitamente `hba_file = '/etc/postgresql/pg_hba.conf'` para que node1 use el archivo de reglas personalizado en lugar del generado por defecto en el datadir.
 * Se verificó el estado de la replicación consultando `pg_stat_replication` en node1, confirmando ambos nodos secundarios en estado `streaming`, y `pg_is_in_recovery()` en node2 y node3 confirmando su rol de standby.
 * Se detectó que HAProxy resuelve el nombre `db-node1` a una IP una única vez al iniciar, por lo que un reinicio del nodo primario podía dejarlo apuntando a una IP obsoleta. Se corrigió agregando una sección `resolvers docker_dns` en `config/haproxy.cfg`, apuntando al DNS interno de Docker (`127.0.0.11:53`), para que HAProxy revalide la IP de los nodos automáticamente.
+
+<!-- --------------- -->
+# progreso del proyecto - replicación física y automatización dinámica
+
+en esta etapa se integro el trabajo de base de datos, se resolvió la clonación de los nodos secundarios y se automatizó la inicialización para garantizar la reproducibilidad del entorno:
+
+# 1. detección y diagnóstico de autenticación
+
+* al integrar los nodos secundarios (node2 y node3), los contenedores entraron en bucle de reinicio debido a un fallo de autenticación en pg_basebackup.
+* *causa:* el script inicial init.sql contenía contraseñas fijas de ejemplo, las cuales no coincidían con las credenciales seguras definidas en el archivo privado .env.
+
+# 2. solución: inicializacion dinamica mediante script bash (init.sh)
+
+* se reemplazó el archivo estatico init.sql por un script de consola *scripts/init.sh*.
+* al ejecutarse bajo bash dentro del contenedor, el script inyecta dinamicamente las variables de entorno ($replica_password, $app_password, etc.) en postgresql, vinculando la base de datos directamente con el archivo .env local.
+* *seguridad y permisos:* se eliminaron las contraseñas en texto plano del código fuente y se le asignó el rol pg_monitor al usuario de monitorización para aplicar el principio de mínimos privilegios.
+* se configuró el formato de saltos de línea en *lf* para asegurar compatibilidad nativa con linux dentro del contenedor.
+
+# 3. configuración de red y acceso de replicación
+
+* en el archivo config/pg_hba.conf se flexibilizó la regla de replicación (0.0.0.0/0 scram-sha-256) para garantizar la conectividad entre nodos sin importar la subred interna asignada por docker.
+
+# 4. validación de streaming replication y reproducibilidad
+
+* se levantó el cluster completamente desde cero (docker compose down -v y docker compose up -d).
+* los 4 contenedores (db-node1, db-node2, db-node3 y haproxy-lib) iniciaron en estado operativo (up) de forma 100% autonoma y sin comandos manuales.
+* mediante una consulta a pg_stat_replication en el nodo primario, se validaron dos conexiones activas de recepción de logs wal (walreceiver) en estado *streaming* y modo asíncrono, dejando la replicación física completamente funcional.
