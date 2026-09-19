@@ -75,3 +75,32 @@ en esta etapa se integro el trabajo de base de datos, se resolvió la clonación
 * se levantó el cluster completamente desde cero (docker compose down -v y docker compose up -d).
 * los 4 contenedores (db-node1, db-node2, db-node3 y haproxy-lib) iniciaron en estado operativo (up) de forma 100% autonoma y sin comandos manuales.
 * mediante una consulta a pg_stat_replication en el nodo primario, se validaron dos conexiones activas de recepción de logs wal (walreceiver) en estado *streaming* y modo asíncrono, dejando la replicación física completamente funcional.
+<!-- ----------- -->
+
+## progreso del proyecto - stack de observabilidad y monitoreo (prometheus y grafana)
+
+se implementó la arquitectura completa de observabilidad para supervisar el rendimiento y la salud del clúster de base de datos en tiempo real:
+
+# 1. configuración del recolector (prometheus)
+
+* se creó el archivo monitoring/prometheus.yml estableciendo un intervalo de recolección de 10 segundos para consultar el endpoint de métricas de postgresql.
+
+# 2. integración de servicios en docker compose
+
+* se agregaron tres nuevos contenedores conectados a la red interna cluster-net con almacenamiento persistente:
+
+   *postgres-exporter:* agente que extrae métricas de db-node1 utilizando el usuario seguro usuario_monitorizacion. se mapeó al puerto de host 19187 para evitar conflictos de puertos reservados por el sistema operativo en windows.
+   *prometheus:* base de datos de series temporales (puerto 9090) con volumen persistente prometheus_data.
+   *grafana:* plataforma de visualización gráfica (puerto 3000) con volumen persistente grafana_data y credenciales iniciales configuradas.
+
+# 3. validación de extracción de métricas
+
+* se verificó la disponibilidad del exportador en /metrics.
+* en la consola de prometheus (status > targets), se comprobó que el objetivo de recolección (postgres) se encuentra en estado *up* en verde brillante, garantizando la ingesta continua de telemetría por la red interna.
+
+# 4. configuración y visualización en grafana
+
+* se vinculó prometheus como fuente de datos (data source) a través de la url interna http://prometheus:9090.
+* se importó la plantilla gráfica oficial recomendada por la cátedra (dashboard id: 9628).
+* se validó la recepción en vivo de las métricas clave de postgresql 17: uso de cpu, memoria ram consumida, descriptores de archivo abiertos y conexiones activas.
+
