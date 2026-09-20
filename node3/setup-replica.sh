@@ -22,4 +22,5 @@ fi
 
 # Delegamos al entrypoint original de la imagen postgres,
 # que detecta PG_VERSION y arranca sin volver a hacer initdb.
-exec docker-entrypoint.sh postgres
+# --- para inicie también con 300 conexiones ---
+exec docker-entrypoint.sh postgres -c max_connections=300

@@ -104,3 +104,44 @@ se implementó la arquitectura completa de observabilidad para supervisar el ren
 * se importó la plantilla gráfica oficial recomendada por la cátedra (dashboard id: 9628).
 * se validó la recepción en vivo de las métricas clave de postgresql 17: uso de cpu, memoria ram consumida, descriptores de archivo abiertos y conexiones activas.
 
+<!-- -------- -->
+
+# progreso del proyecto - ajustes del cluster, cliente sql y benchmarking con pgbench
+
+en esta etapa se optimizaron las reglas del balanceador y del motor, se valido el acceso del cliente a traves del proxy y se ejecutaron las pruebas de estres obligatorias:
+
+# 1. optimizacion del balanceador haproxy
+
+* **tiempos de espera:** se incrementaron los valores de inactividad (timeout client y timeout server) a 30 minutos en config/haproxy.cfg, evitando cortes inesperados de conexion tcp durante sesiones interactivas y pruebas de carga prolongadas.
+* **politicas de lectura/escritura:** se configuro la directiva backup en el nodo primario dentro del backend de lectura (puerto 5001). con esto se garantizo que las lecturas se distribuyan exclusivamente entre los nodos secundarios (node2 y node3), liberando al primario de carga y asegurando que cualquier intento de escritura por el puerto 5001 sea rechazado por tratarse de replicas en modo solo lectura (read-only transaction).
+
+# 2. seguridad y validacion del cliente sql
+
+* se otorgaron permisos explicitos sobre las secuencias automaticas (grant all privileges on all sequences) al rol usuario_app, solucionando el error de insercion autoincremental sin otorgar privilegios de superusuario.
+* se valido el flujo de operaciones a traves de haproxy:
+
+  * escritura exitosa por el puerto 5000 (derivada a db-node1).
+  * lectura inmediata y consistente por el puerto 5001 (derivada a las replicas).
+
+# 3. deteccion y resolucion del cuello de botella en postgresql
+
+* durante las pruebas iniciales de carga con 100 clientes, el motor alcanzo su limite por defecto arrojando fatal: sorry, too many clients already.
+* **solucion aplicada:** se ajusto el parametro max_connections = 300 en config/postgresql.conf, asignando la memoria necesaria para soportar alta concurrencia sumada a las conexiones fijas de replicacion y monitorizacion.
+
+# 4. resultados de benchmarking y concurrencia (pgbench)
+
+se inicializo el esquema de pruebas con un factor de escala de 10 (-s 10, 1.000.000 de registros) y se ejecutaron pruebas de estres de 10 segundos continuos variando la concurrencia a traves del puerto 5000 del balanceador:
+
+* *10 clientes:* 2.616 tps | latencia promedio: 3.82 ms | fallos: 0%
+* *25 clientes:* 3.733 tps | latencia promedio: 6.69 ms | fallos: 0%
+* *50 clientes:* 4.251 tps | latencia promedio: 11.76 ms | fallos: 0%
+* *100 clientes* (pico optimo):** 4.417 tps | latencia promedio: 22.64 ms | fallos: 0%
+* *200 clientes* (saturacion/degradacion):** 4.198 tps | latencia promedio: 47.64 ms | fallos: 0%
+
+**conclusion del estres:** el sistema demostro su punto de maxima eficiencia alrededor de los 100 clientes concurrentes. al duplicar la carga a 200 clientes, el rendimiento cayo levemente y la latencia se duplico debido a la contencion de recursos y cambios de contexto en cpu.
+
+# 5. telemetria y portabilidad
+
+* en grafana se verifico un indice de eficiencia de memoria sobresaliente con un **cache hit rate del 98.92%** y **cero interbloqueos** (deadlocks).
+* se exporto la definicion del tablero a monitoring/dashboard-postgres.json para asegurar la reconstruccion inmediata del entorno de monitoreo.
+
